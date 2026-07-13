@@ -17,7 +17,6 @@ This application serves as a complete booking management system with three acces
 ```
 en2h-booking-platform/
 ├── .gitignore
-├── .env.example
 ├── README.md
 ├── backend/
 │   ├── package.json
@@ -100,8 +99,6 @@ Create a `.env` file at the project root (or set these in your environment):
 JWT_SECRET=super-secret-jwt-key-for-local-development-12345
 PORT=3001
 ```
-
-A template is provided in `.env.example`.
 
 ---
 
@@ -222,6 +219,23 @@ We have added helper scripts to make testing and resetting the platform easy:
    # Generate a CUSTOMER token for a custom user
    npm run jwt:generate -- --role CUSTOMER --email user@example.com --name "Jane Doe"
    ```
+
+## Customized Features & UX Improvements
+
+To provide a premium and secure user experience, several customized features have been added:
+
+1. **Auto-Redirect & Secured Gateway**:
+   - Guests cannot view or access the client portal or service scheduling layout. 
+   - Unauthenticated visitors are automatically directed to a larger, centered login/registration card inside the main page.
+   - Login input fields contain clean icon alignments (`User` for name, `Mail` for email, `Lock` for password).
+
+2. **Custom Modal Confirmations**:
+   - Native browser dialogs (`window.prompt` and `window.confirm`) have been completely replaced with custom overlays.
+   - Modals use tailwind glassmorphic styling, complete with hover transition effects and standard close (`X`) buttons.
+
+3. **Booking Cancellation Reasons**:
+   - When a customer cancels their booking or an administrator changes status to `CANCELLED`, they are presented with a custom cancellation dialog box to supply a reason.
+   - Cancellation reasons are saved in the database under `cancellationReason` column and rendered under the status badges on client and staff boards.
 
 ---
 
