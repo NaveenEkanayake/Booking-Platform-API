@@ -6,6 +6,7 @@ import * as bcrypt from 'bcryptjs';
 import { User, UserRole } from './user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -81,6 +82,48 @@ export class AuthService implements OnModuleInit {
         role: user.role,
       },
     };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user) {
+      throw new ConflictException('User with this email does not exist');
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+    user.resetPasswordCode = code;
+    user.resetPasswordExpires = expires;
+    await this.userRepository.save(user);
+
+    const { sendResetCodeEmail } = require('./mailer.helper');
+    await sendResetCodeEmail(user.email, user.name, code);
+
+    return { message: 'Verification code sent to your email.' };
+  }
+
+  async resetPassword(resetDto: ResetPasswordDto) {
+    const { email, code, newPassword } = resetDto;
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user) {
+      throw new ConflictException('User not found');
+    }
+
+    if (!user.resetPasswordCode || user.resetPasswordCode !== code) {
+      throw new UnauthorizedException('Invalid verification code');
+    }
+
+    if (!user.resetPasswordExpires || user.resetPasswordExpires.getTime() < Date.now()) {
+      throw new UnauthorizedException('Verification code has expired');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.resetPasswordCode = null;
+    user.resetPasswordExpires = null;
+    await this.userRepository.save(user);
+
+    return { message: 'Password has been reset successfully.' };
   }
 
   private generateToken(user: User): string {

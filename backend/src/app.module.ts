@@ -11,7 +11,7 @@ import { Booking } from './bookings/booking.entity';
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: process.env.DB_PATH || '../database.sqlite',
+      database: process.env.DB_PATH,
       entities: [User, ServiceEntity, Booking],
       synchronize: true,
     }),

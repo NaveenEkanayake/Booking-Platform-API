@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Lock
 } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 
 interface UserInfo {
   id: string;
@@ -71,8 +72,11 @@ export default function App() {
     }
     return 'landing';
   });
-  const [authTab, setAuthTab] = useState<'customer_login' | 'customer_register' | 'staff_login'>('customer_login');
+  const [authTab, setAuthTab] = useState<'customer_login' | 'customer_register' | 'staff_login' | 'forgot_password' | 'reset_password'>('customer_login');
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
 
   // Business state
   const [services, setServices] = useState<ServiceEntity[]>([]);
@@ -130,6 +134,8 @@ export default function App() {
     serviceTitle: string | null;
   }>({ show: false, serviceId: null, serviceTitle: null });
 
+  const [wsNotifications, setWsNotifications] = useState<{ id: string; message: string; type: string }[]>([]);
+
   const todayStr = new Date().toISOString().split('T')[0];
 
   // Auto-dismiss feedback message
@@ -142,6 +148,57 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [successMsg, errorMsg]);
+
+  // WebSocket real-time booking updates listener
+  useEffect(() => {
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const socket: Socket = io(backendUrl, {
+      transports: ['websocket'],
+    });
+
+    socket.on('connect', () => {
+      console.log('[WebSocket] Connected to server');
+    });
+
+    socket.on('bookingUpdated', (data: any) => {
+      console.log('[WebSocket] Received bookingUpdated event:', data);
+      
+      let msg = '';
+      const clientName = data.booking?.customerName || 'A customer';
+      const serviceTitle = data.booking?.service?.title || 'service';
+      
+      if (data.type === 'CREATE') {
+        msg = `New appointment request submitted for ${clientName} (${serviceTitle})`;
+      } else if (data.type === 'CANCEL') {
+        msg = `Appointment for ${clientName} (${serviceTitle}) has been CANCELLED.`;
+      } else if (data.type === 'STATUS_UPDATE') {
+        msg = `Booking status for ${clientName} (${serviceTitle}) updated to ${data.booking?.status}.`;
+      } else {
+        msg = `Booking list has been updated.`;
+      }
+
+      const notifId = Math.random().toString();
+      setWsNotifications(prev => [...prev, { id: notifId, message: msg, type: data.type }]);
+
+      setTimeout(() => {
+        setWsNotifications(prev => prev.filter(n => n.id !== notifId));
+      }, 7000);
+
+      // Trigger hot reload of current view data
+      if (localStorage.getItem('user')) {
+        const parsedUser = JSON.parse(localStorage.getItem('user')!);
+        if (parsedUser.role === 'ADMIN') {
+          loadAdminBookings();
+        } else if (parsedUser.role === 'CUSTOMER') {
+          loadCustomerBookings();
+        }
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   // Handle API Requests helper
   const apiFetch = async (url: string, options: RequestInit = {}) => {
@@ -296,6 +353,53 @@ export default function App() {
 
       // Reset form
       setAuthForm({ email: '', password: '', name: '' });
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setLoading(true);
+
+    try {
+      const res = await apiFetch('/api/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      setSuccessMsg(res.message || 'Verification code sent to your email.');
+      setAuthTab('reset_password');
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setLoading(true);
+
+    try {
+      const res = await apiFetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: forgotEmail,
+          code: resetCode,
+          newPassword: resetNewPassword,
+        }),
+      });
+      setSuccessMsg(res.message || 'Password reset successfully.');
+      setAuthTab('customer_login');
+      setForgotEmail('');
+      setResetCode('');
+      setResetNewPassword('');
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -593,120 +697,257 @@ export default function App() {
           )}
 
           <div className="glass-panel w-full max-w-lg rounded-2xl overflow-hidden border border-slate-800 shadow-2xl p-8 space-y-6">
-            {/* Tabs Selector */}
-            <div className="flex border-b border-slate-900 text-xs">
-              <button
-                type="button"
-                onClick={() => setAuthTab('customer_login')}
-                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
-                  authTab === 'customer_login'
-                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Client Login
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthTab('customer_register')}
-                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
-                  authTab === 'customer_register'
-                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Client Register
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthTab('staff_login')}
-                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
-                  authTab === 'staff_login'
-                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Staff Portal
-              </button>
-            </div>
+            {authTab === 'forgot_password' ? (
+              <form onSubmit={handleRequestReset} className="space-y-5">
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-bold tracking-tight text-slate-100">
+                    Forgot Password
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Enter your email address and we'll send you a 6-digit verification code to reset your password.
+                  </p>
+                </div>
 
-            {/* Auth Form Container */}
-            <form onSubmit={handleAuth} className="space-y-5">
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold tracking-tight text-slate-100">
-                  {authTab === 'customer_login' && 'Sign in to your client account'}
-                  {authTab === 'customer_register' && 'Register client profile'}
-                  {authTab === 'staff_login' && 'Administrator authorization'}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {authTab === 'customer_login' && 'Enter your credentials to access the client portal'}
-                  {authTab === 'customer_register' && 'Create an account to book and manage appointments'}
-                  {authTab === 'staff_login' && 'Enter administrator credentials for staff functions'}
-                </p>
-              </div>
-
-              {authTab === 'customer_register' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Full Name</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email Address</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                      <User size={16} />
+                      <Mail size={16} />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                      placeholder="name@example.com"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm tracking-wide shadow-lg shadow-indigo-600/20 transition-all duration-200 mt-2"
+                >
+                  Send Verification Code
+                </button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthTab('customer_login');
+                      setErrorMsg(null);
+                      setSuccessMsg(null);
+                    }}
+                    className="text-xs text-slate-400 hover:text-white transition-all font-medium"
+                  >
+                    Back to Login
+                  </button>
+                </div>
+              </form>
+            ) : authTab === 'reset_password' ? (
+              <form onSubmit={handleResetSubmit} className="space-y-5">
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-bold tracking-tight text-slate-100">
+                    Reset Password
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    We sent a verification code to <span className="text-indigo-400 font-medium">{forgotEmail}</span>. Enter the code and your new password.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Verification Code</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                      <Lock size={16} />
                     </div>
                     <input
                       type="text"
                       required
-                      value={authForm.name}
-                      onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
-                      placeholder="e.g. John Doe"
+                      maxLength={6}
+                      pattern="[0-9]{6}"
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all tracking-widest text-center font-bold"
+                      placeholder="000000"
                     />
                   </div>
                 </div>
-              )}
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Mail size={16} />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">New Password</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                      <Lock size={16} />
+                    </div>
+                    <input
+                      type="password"
+                      required
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                      placeholder="••••••••"
+                    />
                   </div>
-                  <input
-                    type="email"
-                    required
-                    value={authForm.email}
-                    onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
-                    placeholder="name@example.com"
-                  />
                 </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Lock size={16} />
+                <button
+                  type="submit"
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm tracking-wide shadow-lg shadow-indigo-600/20 transition-all duration-200 mt-2"
+                >
+                  Reset Password
+                </button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthTab('customer_login');
+                      setErrorMsg(null);
+                      setSuccessMsg(null);
+                    }}
+                    className="text-xs text-slate-400 hover:text-white transition-all font-medium"
+                  >
+                    Back to Login
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                {/* Tabs Selector */}
+                <div className="flex border-b border-slate-900 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setAuthTab('customer_login')}
+                    className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
+                      authTab === 'customer_login'
+                        ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Client Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthTab('customer_register')}
+                    className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
+                      authTab === 'customer_register'
+                        ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Client Register
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthTab('staff_login')}
+                    className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
+                      authTab === 'staff_login'
+                        ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Staff Portal
+                  </button>
+                </div>
+
+                {/* Auth Form Container */}
+                <form onSubmit={handleAuth} className="space-y-5">
+                  <div className="text-center space-y-2">
+                    <h3 className="text-xl font-bold tracking-tight text-slate-100">
+                      {authTab === 'customer_login' && 'Sign in to your client account'}
+                      {authTab === 'customer_register' && 'Register client profile'}
+                      {authTab === 'staff_login' && 'Administrator authorization'}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {authTab === 'customer_login' && 'Enter your credentials to access the client portal'}
+                      {authTab === 'customer_register' && 'Create an account to book and manage appointments'}
+                      {authTab === 'staff_login' && 'Enter administrator credentials for staff functions'}
+                    </p>
                   </div>
-                  <input
-                    type="password"
-                    required
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
-                    placeholder="••••••••"
-                  />
-                </div>
-              </div>
 
-              <button
-                type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm tracking-wide shadow-lg shadow-indigo-600/20 transition-all duration-200 mt-4"
-              >
-                {authTab === 'customer_login' && 'Sign In'}
-                {authTab === 'customer_register' && 'Register Account'}
-                {authTab === 'staff_login' && 'Log In Staff'}
-              </button>
-            </form>
+                  {authTab === 'customer_register' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Full Name</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                          <User size={16} />
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          value={authForm.name}
+                          onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                          placeholder="e.g. John Doe"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email Address</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                        <Mail size={16} />
+                      </div>
+                      <input
+                        type="email"
+                        required
+                        value={authForm.email}
+                        onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                        placeholder="name@example.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Password</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                        <Lock size={16} />
+                      </div>
+                      <input
+                        type="password"
+                        required
+                        value={authForm.password}
+                        onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </div>
+
+                  {authTab === 'customer_login' && (
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthTab('forgot_password');
+                          setErrorMsg(null);
+                          setSuccessMsg(null);
+                        }}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-all"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm tracking-wide shadow-lg shadow-indigo-600/20 transition-all duration-200 mt-4"
+                  >
+                    {authTab === 'customer_login' && 'Sign In'}
+                    {authTab === 'customer_register' && 'Register Account'}
+                    {authTab === 'staff_login' && 'Log In Staff'}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </main>
 
@@ -714,6 +955,46 @@ export default function App() {
         <footer className="w-full border-t border-slate-900 glass-panel px-6 py-6 text-center text-xs text-slate-500">
           <p>&copy; {new Date().getFullYear()} Booking Board. All Rights Reserved. Built with NestJS, SQLite, React & Tailwind.</p>
         </footer>
+
+        {/* Real-time Socket notifications stack */}
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full">
+          {wsNotifications.map((notif) => (
+            <div
+              key={notif.id}
+              className={`glass-panel border-l-4 p-4 rounded-xl flex items-start gap-3 shadow-2xl animate-in slide-in-from-right-5 duration-300 ${
+                notif.type === 'CANCEL'
+                  ? 'border-rose-500 bg-rose-950/20 text-rose-200'
+                  : notif.type === 'CREATE'
+                  ? 'border-indigo-500 bg-indigo-950/20 text-indigo-200'
+                  : 'border-emerald-500 bg-emerald-950/20 text-emerald-200'
+              }`}
+            >
+              <div className="shrink-0 pt-0.5">
+                {notif.type === 'CANCEL' ? (
+                  <AlertCircle size={18} className="text-rose-400" />
+                ) : notif.type === 'CREATE' ? (
+                  <Calendar size={18} className="text-indigo-400" />
+                ) : (
+                  <Check size={18} className="text-emerald-400" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1">
+                <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
+                  Broadcast Alert
+                </div>
+                <div className="text-xs font-semibold leading-relaxed">
+                  {notif.message}
+                </div>
+              </div>
+              <button
+                onClick={() => setWsNotifications(prev => prev.filter(n => n.id !== notif.id))}
+                className="text-slate-400 hover:text-white shrink-0"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1653,6 +1934,46 @@ export default function App() {
       <footer className="w-full border-t border-slate-900 glass-panel px-6 py-6 text-center text-xs text-slate-500">
         <p>&copy; {new Date().getFullYear()} Booking Board. All Rights Reserved. Built with NestJS, SQLite, React & Tailwind.</p>
       </footer>
+
+      {/* Real-time Socket notifications stack */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full">
+        {wsNotifications.map((notif) => (
+          <div
+            key={notif.id}
+            className={`glass-panel border-l-4 p-4 rounded-xl flex items-start gap-3 shadow-2xl animate-in slide-in-from-right-5 duration-300 ${
+              notif.type === 'CANCEL'
+                ? 'border-rose-500 bg-rose-950/20 text-rose-200'
+                : notif.type === 'CREATE'
+                ? 'border-indigo-500 bg-indigo-950/20 text-indigo-200'
+                : 'border-emerald-500 bg-emerald-950/20 text-emerald-200'
+            }`}
+          >
+            <div className="shrink-0 pt-0.5">
+              {notif.type === 'CANCEL' ? (
+                <AlertCircle size={18} className="text-rose-400" />
+              ) : notif.type === 'CREATE' ? (
+                <Calendar size={18} className="text-indigo-400" />
+              ) : (
+                <Check size={18} className="text-emerald-400" />
+              )}
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
+                Broadcast Alert
+              </div>
+              <div className="text-xs font-semibold leading-relaxed">
+                {notif.message}
+              </div>
+            </div>
+            <button
+              onClick={() => setWsNotifications(prev => prev.filter(n => n.id !== notif.id))}
+              className="text-slate-400 hover:text-white shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

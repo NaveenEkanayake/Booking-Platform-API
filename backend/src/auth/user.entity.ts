@@ -26,6 +26,12 @@ export class User {
   })
   role: UserRole;
 
+  @Column({ nullable: true })
+  resetPasswordCode: string;
+
+  @Column({ nullable: true })
+  resetPasswordExpires: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

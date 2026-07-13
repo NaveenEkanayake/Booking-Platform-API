@@ -98,6 +98,7 @@ Create a `.env` file at the project root (or set these in your environment):
 ```env
 JWT_SECRET=super-secret-jwt-key-for-local-development-12345
 PORT=3001
+DB_PATH=../database.sqlite
 ```
 
 ---
@@ -236,21 +237,6 @@ To provide a premium and secure user experience, several customized features hav
 3. **Booking Cancellation Reasons**:
    - When a customer cancels their booking or an administrator changes status to `CANCELLED`, they are presented with a custom cancellation dialog box to supply a reason.
    - Cancellation reasons are saved in the database under `cancellationReason` column and rendered under the status badges on client and staff boards.
-
----
-
-## Docker Containerization (Local Run)
-
-The application has been dockerized for local deployment with multi-stage builds and Nginx proxying for the Vite React SPA:
-
-### 1. Start using Docker Compose
-```bash
-docker-compose up --build
-```
-
-- **Backend / Swagger Documentation**: Available at `http://localhost:3001` and `http://localhost:3001/api/docs`
-- **Frontend SPA**: Available at `http://localhost:5173`
-- **Database Persistence**: SQLite database is automatically persisted inside a named docker volume `sqlite-data`.
 
 ---
 

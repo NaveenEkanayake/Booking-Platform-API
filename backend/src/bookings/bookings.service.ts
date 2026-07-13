@@ -8,6 +8,8 @@ import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { BookingQueryDto } from './dto/booking-query.dto';
 import { ServiceEntity } from '../services/service.entity';
 
+import { BookingsGateway } from './bookings.gateway';
+
 @Injectable()
 export class BookingsService {
   constructor(
@@ -15,6 +17,7 @@ export class BookingsService {
     private readonly bookingRepository: Repository<Booking>,
     @InjectRepository(ServiceEntity)
     private readonly serviceRepository: Repository<ServiceEntity>,
+    private readonly bookingsGateway: BookingsGateway,
   ) {}
 
   async create(createBookingDto: CreateBookingDto, customerId?: string): Promise<Booking> {
@@ -55,7 +58,16 @@ export class BookingsService {
       status: BookingStatus.PENDING,
     });
 
-    return this.bookingRepository.save(booking);
+    const saved = await this.bookingRepository.save(booking);
+    const fullBooking = await this.bookingRepository.findOne({
+      where: { id: saved.id },
+      relations: ['service'],
+    });
+    this.bookingsGateway.sendBookingNotification('bookingUpdated', {
+      type: 'CREATE',
+      booking: fullBooking,
+    });
+    return saved;
   }
 
   async findAll(query: BookingQueryDto) {
@@ -133,7 +145,17 @@ export class BookingsService {
 
     booking.status = BookingStatus.CANCELLED;
     booking.cancellationReason = cancelBookingDto?.cancellationReason || 'Cancelled by customer';
-    return this.bookingRepository.save(booking);
+    const saved = await this.bookingRepository.save(booking);
+
+    const fullBooking = await this.bookingRepository.findOne({
+      where: { id: saved.id },
+      relations: ['service'],
+    });
+    this.bookingsGateway.sendBookingNotification('bookingUpdated', {
+      type: 'CANCEL',
+      booking: fullBooking,
+    });
+    return saved;
   }
 
   async updateStatus(id: string, updateStatusDto: UpdateBookingStatusDto): Promise<Booking> {
@@ -174,6 +196,16 @@ export class BookingsService {
     }
 
     booking.status = newStatus;
-    return this.bookingRepository.save(booking);
+    const saved = await this.bookingRepository.save(booking);
+
+    const fullBooking = await this.bookingRepository.findOne({
+      where: { id: saved.id },
+      relations: ['service'],
+    });
+    this.bookingsGateway.sendBookingNotification('bookingUpdated', {
+      type: 'STATUS_UPDATE',
+      booking: fullBooking,
+    });
+    return saved;
   }
 }
