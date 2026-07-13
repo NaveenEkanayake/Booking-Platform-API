@@ -151,7 +151,8 @@ export default function App() {
     }
     headers.set('Content-Type', 'application/json');
 
-    const response = await fetch(url, { ...options, headers });
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiBase}${url}`, { ...options, headers });
 
     if (response.status === 401) {
       handleLogout();

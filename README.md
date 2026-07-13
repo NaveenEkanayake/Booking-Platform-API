@@ -254,6 +254,30 @@ docker-compose up --build
 
 ---
 
+## Vercel Deployment
+
+Both the Frontend and Backend can be deployed to Vercel as two separate projects linked to your repository:
+
+### 1. Backend Deployment (NestJS Serverless Function)
+Vercel hosts the backend as serverless functions.
+- **Root Directory**: `backend`
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Environment Variables**:
+  - `DATABASE_URL`: A PostgreSQL connection string (e.g., from Neon or Supabase). Required as local SQLite files are read-only and transient on Vercel.
+  - `JWT_SECRET`: A secure random secret key.
+
+### 2. Frontend Deployment (Vite SPA)
+Vercel hosts the frontend as a static SPA.
+- **Root Directory**: `frontend`
+- **Framework Preset**: `Vite`
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Environment Variables**:
+  - `VITE_API_URL`: Set to your Vercel backend URL (e.g., `https://en2h-backend.vercel.app`).
+
+---
+
 ## Assumptions & Design Choices
 
 1. **Self-contained DB**: SQLite was chosen for zero-config setup — no external database server needed.
