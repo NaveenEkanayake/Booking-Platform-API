@@ -10,6 +10,7 @@
     "frontend:build": "npm run build --prefix frontend",
     "frontend:preview": "npm run preview --prefix frontend",
     "db:clear": "node backend/scripts/clear-db.js",
-    "jwt:generate": "node backend/scripts/generate-jwt.js"
+    "jwt:generate": "node backend/scripts/generate-jwt.js",
+    "api:test": "node backend/scripts/test-api.js"
   }
 }

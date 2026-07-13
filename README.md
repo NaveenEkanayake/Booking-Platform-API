@@ -221,6 +221,12 @@ We have added helper scripts to make testing and resetting the platform easy:
    npm run jwt:generate -- --role CUSTOMER --email user@example.com --name "Jane Doe"
    ```
 
+3. **Verify API Endpoints**:
+   Run automated API integration tests to verify the backend server functionality (ensure the backend server is running on port 3001 first).
+   ```bash
+   npm run api:test
+   ```
+
 ## Customized Features & UX Improvements
 
 To provide a premium and secure user experience, several customized features have been added:
