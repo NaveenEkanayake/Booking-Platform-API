@@ -6,9 +6,8 @@ A self-contained, production-ready Booking Platform REST API and interactive Sin
 
 This application serves as a complete booking management system with three access boundaries:
 
-1. **Guest Customer (Unauthenticated)**: Can view the public service catalog and submit booking requests without an account.
-2. **Registered Customer (Authenticated - CUSTOMER role)**: Can register/login via the Client Login gateway, view active services, book time slots (auto-linked to their profile), view their booking history, and cancel their own bookings.
-3. **Platform Administrator (Authenticated - ADMIN role)**: Can login via the Staff Portal, perform CRUD operations on services, toggle service activation, view all site-wide bookings via a Master Booking Board (with search, status filters, and pagination), and confirm, complete, or cancel bookings.
+1. **Registered Customer (Authenticated - CUSTOMER role)**: Can register/login via the Client Login gateway, view active services, book time slots (auto-linked to their profile), view their booking history, and cancel their own bookings.
+2. **Platform Administrator (Authenticated - ADMIN role)**: Can login via the Staff Portal, perform CRUD operations on services, toggle service activation, view all site-wide bookings via a Master Booking Board (with search, status filters, and pagination), and confirm, complete, or cancel bookings.
 
 ---
 
