@@ -1,41 +1,27 @@
 version: '3.8'
 
 services:
-  api:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DATABASE_URL=postgresql://booking_user:booking_pass@db:5432/booking_db
-      - JWT_SECRET=${JWT_SECRET:-production-jwt-secret-change-me}
-      - JWT_EXPIRATION=15m
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-production-refresh-secret-change-me}
-      - JWT_REFRESH_EXPIRATION=7d
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-
-  db:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: booking_user
-      POSTGRES_PASSWORD: booking_pass
-      POSTGRES_DB: booking_db
+      - PORT=3001
+      - JWT_SECRET=super-secret-jwt-key-for-local-development-12345
+      - DB_PATH=/usr/src/app/data/database.sqlite
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U booking_user -d booking_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      - sqlite-data:/usr/src/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
 
 volumes:
-  postgres_data:
+  sqlite-data:

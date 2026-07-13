@@ -1,253 +1,260 @@
-# 🏨 Booking Platform REST API
+# EN2H Booking Platform
 
-A production-ready REST API for managing services and customer bookings. Built with **NestJS**, **TypeORM**, and **SQLite**.
+A self-contained, production-ready Booking Platform REST API and interactive Single Page Application (SPA) built with **NestJS** (backend) and **React + Tailwind CSS + Lucide Icons** (frontend).
 
-## ✨ Features
+## Overview
 
-- **Authentication** – JWT-based registration, login, and token refresh
-- **Service Management** – CRUD operations with owner-only authorization
-- **Booking Management** – Public booking creation with full business rules
-- **Status Workflow** – Enforced state transitions (`PENDING → CONFIRMED → COMPLETED`, cancel anytime)
-- **Duplicate Prevention** – Blocks duplicate bookings for the same service/date/time
-- **Pagination & Search** – Paginated listing with search and status filters
-- **API Documentation** – Full Swagger/OpenAPI UI at `/api/docs`
-- **Error Handling** – Consistent error responses with validation details
-- **Docker Support** – Ready-to-use Docker and Docker Compose setup
+This application serves as a complete booking management system with three access boundaries:
 
-## 🛠 Tech Stack
+1. **Guest Customer (Unauthenticated)**: Can view the public service catalog and submit booking requests without an account.
+2. **Registered Customer (Authenticated - CUSTOMER role)**: Can register/login via the Client Login gateway, view active services, book time slots (auto-linked to their profile), view their booking history, and cancel their own bookings.
+3. **Platform Administrator (Authenticated - ADMIN role)**: Can login via the Staff Portal, perform CRUD operations on services, toggle service activation, view all site-wide bookings via a Master Booking Board (with search, status filters, and pagination), and confirm, complete, or cancel bookings.
 
-| Technology       | Purpose                  |
-| ---------------- | ------------------------ |
-| NestJS 11        | Framework                |
-| TypeScript 5     | Language                 |
-| TypeORM 0.3      | ORM                      |
-| SQLite           | Database (development)   |
-| Passport.js      | Authentication           |
-| JWT              | Token-based auth         |
-| bcrypt           | Password hashing         |
-| Swagger/OpenAPI  | API documentation        |
-| class-validator  | Input validation         |
+---
 
-## 📋 Prerequisites
+## Project Structure
 
-- **Node.js** v18 or higher (v22+ recommended)
-- **npm** v9 or higher
-
-## 🚀 Getting Started
-
-### 1. Clone & Install
-
-```bash
-git clone <repo-url>
-cd booking-platform-api
-npm install
+```
+en2h-booking-platform/
+├── .gitignore
+├── .env.example
+├── README.md
+├── backend/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── app.module.ts
+│   │   ├── common/
+│   │   │   ├── filters/
+│   │   │   │   └── http-exception.filter.ts
+│   │   │   ├── decorators/
+│   │   │   │   └── roles.decorator.ts
+│   │   │   └── guards/
+│   │   │       └── roles.guard.ts
+│   │   ├── auth/
+│   │   │   ├── auth.module.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── jwt.strategy.ts
+│   │   │   ├── jwt-auth.guard.ts
+│   │   │   ├── user.entity.ts
+│   │   │   └── dto/
+│   │   │       ├── register.dto.ts
+│   │   │       └── login.dto.ts
+│   │   ├── services/
+│   │   │   ├── services.module.ts
+│   │   │   ├── services.service.ts
+│   │   │   ├── services.controller.ts
+│   │   │   ├── service.entity.ts
+│   │   │   └── dto/
+│   │   │       ├── create-service.dto.ts
+│   │   │       └── update-service.dto.ts
+│   │   └── bookings/
+│   │       ├── bookings.module.ts
+│   │       ├── bookings.service.ts
+│   │       ├── bookings.controller.ts
+│   │       ├── booking.entity.ts
+│   │       └── dto/
+│   │           ├── create-booking.dto.ts
+│   │           ├── update-booking-status.dto.ts
+│   │           └── booking-query.dto.ts
+└── frontend/
+    ├── package.json
+    ├── vite.config.ts
+    ├── tailwind.config.js
+    ├── postcss.config.js
+    ├── index.html
+    └── src/
+        ├── main.tsx
+        ├── App.tsx
+        └── index.css
 ```
 
-### 2. Environment Variables
+---
 
-Copy the example env file:
+## Installation & Setup
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) v18 or higher
+- [npm](https://www.npmjs.com/) (included with Node.js)
+
+### 1. Clone & Install Dependencies
 
 ```bash
-cp .env.example .env
+# Install backend dependencies
+cd backend && npm install
+
+# Install frontend dependencies
+cd ../frontend && npm install
 ```
 
-Edit `.env` with your configuration:
+---
+
+## Environment Variables
+
+Create a `.env` file at the project root (or set these in your environment):
 
 ```env
-# Database (SQLite for development)
-DATABASE_URL=sqlite:./data/booking.db
-
-# JWT
-JWT_SECRET=your-secret-key
-JWT_EXPIRATION=15m
-JWT_REFRESH_SECRET=your-refresh-secret
-JWT_REFRESH_EXPIRATION=7d
-
-# App
-PORT=3000
-NODE_ENV=development
+JWT_SECRET=super-secret-jwt-key-for-local-development-12345
+PORT=3001
 ```
 
-### 3. Run the App
+A template is provided in `.env.example`.
+
+---
+
+## Database Setup
+
+This project uses **SQLite** via **TypeORM** — no external database required.
+
+- The SQLite database file (`database.sqlite`) is created automatically in the project root directory on first run.
+- Schema synchronization is automatic (`synchronize: true`), so tables are created/updated on startup.
+
+### Default Admin Account
+
+On first boot, the system automatically seeds an administrator account:
+
+| Email               | Password  | Role  |
+|---------------------|-----------|-------|
+| admin@entwoh.com    | admin123  | ADMIN |
+
+---
+
+## Running the Application
+
+### Backend (API Server)
 
 ```bash
-# Development mode (with hot reload)
-npm run start:dev
-
-# Production mode
-npm run build
-npm run start:prod
-
-# Debug mode
-npm run start:debug
+cd backend
+npm run dev
 ```
 
-The API will be available at **http://localhost:3000**.
+The backend runs on `http://localhost:3001`.
 
-### 4. API Documentation
-
-Open your browser to **http://localhost:3000/api/docs** for the interactive Swagger UI.
-
-Use the "Authorize" button to enter your JWT token after logging in.
-
-## 📡 API Endpoints
-
-### Authentication (`/auth`)
-
-| Method | Endpoint             | Auth     | Description                  |
-| ------ | -------------------- | -------- | ---------------------------- |
-| POST   | `/auth/register`     | Public   | Register a new user          |
-| POST   | `/auth/login`        | Public   | Login and receive JWT tokens |
-| POST   | `/auth/refresh`      | Public   | Refresh access token         |
-
-### Users (`/users`)
-
-| Method | Endpoint         | Auth  | Description               |
-| ------ | ---------------- | ----- | ------------------------- |
-| GET    | `/users/profile` | JWT   | Get current user profile  |
-| PATCH  | `/users/profile` | JWT   | Update current user       |
-
-### Services (`/services`)
-
-| Method | Endpoint         | Auth   | Description                        |
-| ------ | ---------------- | ------ | ---------------------------------- |
-| POST   | `/services`      | JWT    | Create a new service               |
-| GET    | `/services`      | Public | List all active services           |
-| GET    | `/services/:id`  | Public | Get service by ID                  |
-| PATCH  | `/services/:id`  | JWT    | Update service (owner only)        |
-| DELETE | `/services/:id`  | JWT    | Soft-delete service (owner only)   |
-
-### Bookings (`/bookings`)
-
-| Method | Endpoint               | Auth   | Description                        |
-| ------ | ---------------------- | ------ | ---------------------------------- |
-| POST   | `/bookings`            | Public | Create a new booking               |
-| GET    | `/bookings`            | JWT    | List bookings (paginated)          |
-| GET    | `/bookings/:id`        | JWT    | Get booking by ID                  |
-| PATCH  | `/bookings/:id/status` | JWT    | Update booking status              |
-| DELETE | `/bookings/:id`        | JWT    | Cancel a booking                   |
-
-### Query Parameters
-
-**GET /services**
-- `?search=hair` – Search by title
-- `?isActive=true` – Filter by active status
-
-**GET /bookings**
-- `?page=1&limit=10` – Pagination
-- `?search=John` – Search by customer name
-- `?status=CONFIRMED` – Filter by status
-
-## 📦 Project Structure
-
-```
-src/
-├── auth/                    # Authentication module
-│   ├── dto/                 # Request DTOs
-│   ├── guards/              # JWT auth guard
-│   ├── strategies/          # JWT strategy
-│   ├── auth.controller.ts
-│   ├── auth.service.ts
-│   └── auth.module.ts
-├── users/                   # User management
-│   ├── dto/
-│   ├── entities/            # User entity
-│   ├── users.controller.ts
-│   ├── users.service.ts
-│   └── users.module.ts
-├── services/                # Service management
-│   ├── dto/
-│   ├── entities/            # Service entity
-│   ├── services.controller.ts
-│   ├── services.service.ts
-│   └── services.module.ts
-├── bookings/                # Booking management
-│   ├── dto/
-│   ├── entities/            # Booking entity
-│   ├── bookings.controller.ts
-│   ├── bookings.service.ts
-│   └── bookings.module.ts
-├── common/                  # Shared resources
-│   ├── decorators/          # @CurrentUser, @Public
-│   ├── filters/             # Global exception filter
-│   ├── interceptors/        # Response transformer
-│   └── common.module.ts
-├── config/                  # Configuration
-├── app.module.ts            # Root module
-└── main.ts                  # Entry point
-```
-
-## 🧪 Running Tests
+### Frontend (SPA Client)
 
 ```bash
-# Unit tests
-npm test
-
-# Test coverage
-npm run test:cov
-
-# E2E tests
-npm run test:e2e
+cd frontend
+npm run dev
 ```
 
-## 🐳 Docker (Bonus)
+The frontend runs on `http://localhost:5173` (or the next available port).  
+API requests are proxied to the backend automatically via Vite's proxy configuration.
 
-### SQLite (lightweight)
+---
 
+## API Documentation
+
+Interactive Swagger OpenAPI documentation is available when the backend is running:
+
+- **URL**: `http://localhost:3001/api/docs`
+- **Auth**: Click the `Authorize` button and paste your JWT `accessToken` to test protected endpoints.
+
+### Available Endpoints
+
+| Method | Endpoint                              | Auth     | Role     | Description                      |
+|--------|---------------------------------------|----------|----------|----------------------------------|
+| POST   | `/api/auth/register`                  | Public   | -        | Register a new customer          |
+| POST   | `/api/auth/login`                     | Public   | -        | Login (returns JWT + user info)  |
+| GET    | `/api/services/public`                | Public   | -        | View active services             |
+| POST   | `/api/services`                       | Bearer   | ADMIN    | Create a service                 |
+| GET    | `/api/services`                       | Bearer   | ADMIN    | List all services                |
+| GET    | `/api/services/:id`                   | Bearer   | ADMIN    | Get service details              |
+| PATCH  | `/api/services/:id`                   | Bearer   | ADMIN    | Update a service                 |
+| DELETE | `/api/services/:id`                   | Bearer   | ADMIN    | Delete a service                 |
+| POST   | `/api/bookings`                       | Public*  | -        | Submit a booking (guest or auth) |
+| GET    | `/api/bookings/my-bookings`           | Bearer   | CUSTOMER | View personal booking history    |
+| PATCH  | `/api/bookings/:id/cancel-my-booking` | Bearer   | CUSTOMER | Cancel own booking               |
+| GET    | `/api/bookings`                       | Bearer   | ADMIN    | Master booking board (paginated) |
+| PATCH  | `/api/bookings/:id/status`            | Bearer   | ADMIN    | Update booking status            |
+
+*\* POST /api/bookings optionally accepts a Bearer token to auto-link the booking to a logged-in customer.*
+
+---
+
+## Business Rules
+
+1. **Service validation**: Bookings must reference an existing, active service.
+2. **Past dates**: Booking date cannot be in the past.
+3. **Double booking prevention**: A service cannot be double-booked for the same date and time when the status is `CONFIRMED` (throws `ConflictException`).
+4. **Status transitions**: Cancelled bookings cannot be changed to any other status. Completed bookings cannot be changed.
+5. **Global error format**: All errors return `{ statusCode, timestamp, error: { message } }`.
+
+---
+
+## Tech Stack
+
+### Backend
+- **Runtime**: Node.js with NestJS
+- **Language**: TypeScript
+- **Database**: SQLite via TypeORM
+- **Auth**: JWT (passport-jwt) + bcrypt
+- **Validation**: class-validator + class-transformer
+- **API Docs**: Swagger / OpenAPI
+
+### Frontend
+- **Framework**: React 19
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **State**: React hooks (no external state library)
+
+---
+
+## Developer CLI Scripts
+
+We have added helper scripts to make testing and resetting the platform easy:
+
+1. **Clear Test Data**:
+   Remove all test services, customer bookings, and test users from the database, leaving it clean and fresh (the admin account will be automatically seeded on the next application run).
+   ```bash
+   npm run db:clear
+   ```
+
+2. **Generate JWT Token**:
+   Generate a valid JWT Bearer token for testing API endpoints in Swagger/Postman directly without registering or logging in.
+   ```bash
+   # Default generates an ADMIN token for admin@entwoh.com
+   npm run jwt:generate
+   
+   # Generate a CUSTOMER token for a custom user
+   npm run jwt:generate -- --role CUSTOMER --email user@example.com --name "Jane Doe"
+   ```
+
+---
+
+## Docker Containerization (Local Run)
+
+The application has been dockerized for local deployment with multi-stage builds and Nginx proxying for the Vite React SPA:
+
+### 1. Start using Docker Compose
 ```bash
-docker build -t booking-api .
-docker run -p 3000:3000 booking-api
+docker-compose up --build
 ```
 
-### PostgreSQL (production-ready)
+- **Backend / Swagger Documentation**: Available at `http://localhost:3001` and `http://localhost:3001/api/docs`
+- **Frontend SPA**: Available at `http://localhost:5173`
+- **Database Persistence**: SQLite database is automatically persisted inside a named docker volume `sqlite-data`.
 
-```bash
-docker-compose up -d
-```
+---
 
-> **Note:** When using Docker Compose, switch to PostgreSQL by updating the `DATABASE_URL` in `docker-compose.yml`.
+## Assumptions & Design Choices
 
-## 🔐 Business Rules
+1. **Self-contained DB**: SQLite was chosen for zero-config setup — no external database server needed.
+2. **State-based SPA routing**: The frontend uses conditional rendering (state-based views) instead of a routing library, keeping dependencies minimal.
+3. **CORS**: Configured to allow `http://localhost:5173` for local development.
+4. **JWT fallback**: A fallback secret key is compiled in for development convenience; production deployments should set `JWT_SECRET` via environment variable.
+5. **No ORM migrations**: `synchronize: true` in TypeORM automatically keeps the schema in sync with entities.
 
-### Booking Status Workflow
+---
 
-```
-PENDING ──→ CONFIRMED ──→ COMPLETED
-    │                        │
-    └────→ CANCELLED ←───────┘
-```
+## Future Improvements
 
-- `CANCELLED` bookings cannot be marked as `COMPLETED`
-- `COMPLETED` bookings cannot be changed
-- Only `PENDING → CONFIRMED → COMPLETED` forward flow
-- Any status can jump to `CANCELLED` (except `COMPLETED`)
-
-### Validation Rules
-
-- Booking dates **must be in the future**
-- Bookings require an **existing, active service**
-- Duplicate bookings for the same **service + date + time** are blocked
-- Services can only be modified by their **owner**
-
-## 🤔 Assumptions
-
-1. Soft delete for services (mark `isActive = false`) rather than hard deletion
-2. Bookings are public (no authentication required to create one)
-3. UUIDs for primary keys across all entities
-4. SQLite for development ease; PostgreSQL for production via Docker Compose
-
-## 🚧 Future Improvements
-
-- [ ] Rate limiting on public endpoints
-- [ ] Email notifications for booking confirmations
-- [ ] Admin role with elevated permissions
-- [ ] File uploads for service images
-- [ ] Real-time booking availability calendar
-- [ ] Webhooks for external integrations
-- [ ] CI/CD pipeline with GitHub Actions
-- [ ] Redis caching for frequently accessed services
-- [ ] Comprehensive unit and integration tests
-
-## 📄 License
-
-MIT
+1. **Email notifications**: Trigger emails on booking confirmation and status changes.
+2. **Availability calendar**: Show available time slots based on existing bookings and service durations.
+3. **Password strength**: Increase bcrypt salt rounds to 12 for production.
+4. **Rate limiting**: Add throttling to public endpoints to prevent abuse.
+5. **Pagination improvements**: Add sort options and advanced filtering to the admin booking board.
+6. **Unit & e2e tests**: Add comprehensive test coverage.
