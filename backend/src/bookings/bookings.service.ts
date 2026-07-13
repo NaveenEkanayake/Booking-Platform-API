@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Booking, BookingStatus } from './booking.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { BookingQueryDto } from './dto/booking-query.dto';
 import { ServiceEntity } from '../services/service.entity';
 
@@ -116,7 +117,7 @@ export class BookingsService {
     });
   }
 
-  async cancelMyBooking(id: string, customerId: string): Promise<Booking> {
+  async cancelMyBooking(id: string, customerId: string, cancelBookingDto?: CancelBookingDto): Promise<Booking> {
     const booking = await this.bookingRepository.findOne({ where: { id, customerId } });
     if (!booking) {
       throw new NotFoundException(`Booking with ID ${id} not found for this customer`);
@@ -131,11 +132,12 @@ export class BookingsService {
     }
 
     booking.status = BookingStatus.CANCELLED;
+    booking.cancellationReason = cancelBookingDto?.cancellationReason || 'Cancelled by customer';
     return this.bookingRepository.save(booking);
   }
 
   async updateStatus(id: string, updateStatusDto: UpdateBookingStatusDto): Promise<Booking> {
-    const { status: newStatus } = updateStatusDto;
+    const { status: newStatus, cancellationReason } = updateStatusDto;
     const booking = await this.bookingRepository.findOne({ where: { id } });
     if (!booking) {
       throw new NotFoundException(`Booking with ID ${id} not found`);
@@ -163,6 +165,12 @@ export class BookingsService {
       if (doubleBooked && doubleBooked.id !== booking.id) {
         throw new ConflictException('This time slot is already booked and confirmed');
       }
+    }
+
+    if (newStatus === BookingStatus.CANCELLED) {
+      booking.cancellationReason = cancellationReason || 'Cancelled by administrator';
+    } else {
+      booking.cancellationReason = null;
     }
 
     booking.status = newStatus;

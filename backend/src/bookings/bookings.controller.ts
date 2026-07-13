@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { BookingQueryDto } from './dto/booking-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -51,8 +52,12 @@ export class BookingsController {
   @Roles('CUSTOMER')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Cancel own booking (Customer only)' })
-  async cancelMyBooking(@Param('id') id: string, @Req() req: any) {
-    return this.bookingsService.cancelMyBooking(id, req.user.id);
+  async cancelMyBooking(
+    @Param('id') id: string,
+    @Body() cancelBookingDto: CancelBookingDto,
+    @Req() req: any
+  ) {
+    return this.bookingsService.cancelMyBooking(id, req.user.id, cancelBookingDto);
   }
 
   @Get()

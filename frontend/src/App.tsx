@@ -19,7 +19,8 @@ import {
   ChevronRight, 
   Activity, 
   FileText,
-  AlertCircle
+  AlertCircle,
+  Lock
 } from 'lucide-react';
 
 interface UserInfo {
@@ -115,6 +116,19 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isEditingService, setIsEditingService] = useState(false);
+
+  const [cancelModal, setCancelModal] = useState<{
+    show: boolean;
+    bookingId: string | null;
+    reason: string;
+    type: 'customer' | 'admin';
+  }>({ show: false, bookingId: null, reason: '', type: 'customer' });
+
+  const [deleteModal, setDeleteModal] = useState<{
+    show: boolean;
+    serviceId: string | null;
+    serviceTitle: string | null;
+  }>({ show: false, serviceId: null, serviceTitle: null });
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -357,23 +371,8 @@ export default function App() {
   };
 
   // Customer cancellations
-  const handleCancelBooking = async (id: string) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
-    setErrorMsg(null);
-    setSuccessMsg(null);
-    setLoading(true);
-
-    try {
-      await apiFetch(`/api/bookings/${id}/cancel-my-booking`, {
-        method: 'PATCH',
-      });
-      setSuccessMsg('Appointment cancelled successfully.');
-      loadCustomerBookings();
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleCancelBooking = (id: string) => {
+    setCancelModal({ show: true, bookingId: id, reason: '', type: 'customer' });
   };
 
   // Admin Service Operations
@@ -427,14 +426,53 @@ export default function App() {
     document.getElementById('service-form-anchor')?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleDeleteService = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this service permanently?')) return;
+  const handleDeleteService = (id: string, title: string) => {
+    setDeleteModal({ show: true, serviceId: id, serviceTitle: title });
+  };
+
+  const submitCancellation = async () => {
+    if (!cancelModal.bookingId) return;
     setErrorMsg(null);
     setSuccessMsg(null);
     setLoading(true);
 
+    const { bookingId, reason, type } = cancelModal;
+    setCancelModal({ show: false, bookingId: null, reason: '', type: 'customer' });
+
     try {
-      await apiFetch(`/api/services/${id}`, { method: 'DELETE' });
+      if (type === 'customer') {
+        await apiFetch(`/api/bookings/${bookingId}/cancel-my-booking`, {
+          method: 'PATCH',
+          body: JSON.stringify({ cancellationReason: reason || 'Cancelled by customer' }),
+        });
+        setSuccessMsg('Appointment cancelled successfully.');
+        loadCustomerBookings();
+      } else {
+        await apiFetch(`/api/bookings/${bookingId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'CANCELLED', cancellationReason: reason || 'Cancelled by administrator' }),
+        });
+        setSuccessMsg('Booking status updated to CANCELLED.');
+        loadAdminBookings();
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitDeleteService = async () => {
+    if (!deleteModal.serviceId) return;
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setLoading(true);
+
+    const { serviceId } = deleteModal;
+    setDeleteModal({ show: false, serviceId: null, serviceTitle: null });
+
+    try {
+      await apiFetch(`/api/services/${serviceId}`, { method: 'DELETE' });
       setSuccessMsg('Service deleted successfully.');
       loadServices();
     } catch (err: any) {
@@ -465,6 +503,10 @@ export default function App() {
 
   // Admin Booking Operations
   const handleUpdateBookingStatus = async (id: string, newStatus: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED') => {
+    if (newStatus === 'CANCELLED') {
+      setCancelModal({ show: true, bookingId: id, reason: '', type: 'admin' });
+      return;
+    }
     setErrorMsg(null);
     setSuccessMsg(null);
     setLoading(true);
@@ -498,6 +540,183 @@ export default function App() {
         return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
     }
   };
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-x-hidden">
+        {/* Background decorations */}
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-violet-600/10 blur-[120px] pointer-events-none" />
+
+        {/* Global Toast Alert */}
+        {(errorMsg || successMsg) && (
+          <div className="fixed top-6 right-6 z-50 animate-bounce shadow-2xl">
+            {errorMsg && (
+              <div className="bg-rose-950 border border-rose-800 text-rose-100 px-4 py-3 rounded-lg flex items-center gap-3 backdrop-blur-xl">
+                <AlertCircle size={20} className="text-rose-400" />
+                <span>{errorMsg}</span>
+                <button onClick={() => setErrorMsg(null)} className="ml-auto hover:text-rose-300">
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+            {successMsg && (
+              <div className="bg-emerald-950 border border-emerald-800 text-emerald-100 px-4 py-3 rounded-lg flex items-center gap-3 backdrop-blur-xl">
+                <Check size={20} className="text-emerald-400" />
+                <span>{successMsg}</span>
+                <button onClick={() => setSuccessMsg(null)} className="ml-auto hover:text-emerald-300">
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Navigation Header */}
+        <header className="sticky top-0 z-30 w-full glass-panel border-b border-slate-900 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-600 p-2 rounded-lg text-white">
+              <Calendar size={20} />
+            </div>
+            <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+              EN2H Booking Board
+            </span>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8 flex items-center justify-center relative">
+          {loading && (
+            <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-sm flex items-center justify-center z-40">
+              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
+          <div className="glass-panel w-full max-w-lg rounded-2xl overflow-hidden border border-slate-800 shadow-2xl p-8 space-y-6">
+            {/* Tabs Selector */}
+            <div className="flex border-b border-slate-900 text-xs">
+              <button
+                type="button"
+                onClick={() => setAuthTab('customer_login')}
+                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
+                  authTab === 'customer_login'
+                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Client Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthTab('customer_register')}
+                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
+                  authTab === 'customer_register'
+                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Client Register
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthTab('staff_login')}
+                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
+                  authTab === 'staff_login'
+                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Staff Portal
+              </button>
+            </div>
+
+            {/* Auth Form Container */}
+            <form onSubmit={handleAuth} className="space-y-5">
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold tracking-tight text-slate-100">
+                  {authTab === 'customer_login' && 'Sign in to your client account'}
+                  {authTab === 'customer_register' && 'Register client profile'}
+                  {authTab === 'staff_login' && 'Administrator authorization'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {authTab === 'customer_login' && 'Enter your credentials to access the client portal'}
+                  {authTab === 'customer_register' && 'Create an account to book and manage appointments'}
+                  {authTab === 'staff_login' && 'Enter administrator credentials for staff functions'}
+                </p>
+              </div>
+
+              {authTab === 'customer_register' && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Full Name</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                      <User size={16} />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={authForm.name}
+                      onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                      placeholder="e.g. John Doe"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email Address</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <Mail size={16} />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={authForm.email}
+                    onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                    placeholder="name@example.com"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <Lock size={16} />
+                  </div>
+                  <input
+                    type="password"
+                    required
+                    value={authForm.password}
+                    onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm tracking-wide shadow-lg shadow-indigo-600/20 transition-all duration-200 mt-4"
+              >
+                {authTab === 'customer_login' && 'Sign In'}
+                {authTab === 'customer_register' && 'Register Account'}
+                {authTab === 'staff_login' && 'Log In Staff'}
+              </button>
+            </form>
+          </div>
+        </main>
+
+        {/* Global Footer */}
+        <footer className="w-full border-t border-slate-900 glass-panel px-6 py-6 text-center text-xs text-slate-500">
+          <p>&copy; {new Date().getFullYear()} Booking Board. All Rights Reserved. Built with NestJS, SQLite, React & Tailwind.</p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-x-hidden">
@@ -981,9 +1200,16 @@ export default function App() {
                               <span>${booking.service?.price.toFixed(2) || '-'}</span>
                             </td>
                             <td className="p-4">
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeClass(booking.status)}`}>
-                                {booking.status}
-                              </span>
+                              <div className="space-y-1">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeClass(booking.status)}`}>
+                                  {booking.status}
+                                </span>
+                                {booking.status === 'CANCELLED' && booking.cancellationReason && (
+                                  <div className="text-[11px] text-rose-400 italic max-w-[150px] truncate" title={booking.cancellationReason}>
+                                    Reason: {booking.cancellationReason}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="p-4">
                               {booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' ? (
@@ -1144,7 +1370,7 @@ export default function App() {
                             </button>
 
                             <button
-                              onClick={() => handleDeleteService(service.id)}
+                              onClick={() => handleDeleteService(service.id, service.title)}
                               className="p-2 text-rose-500 hover:text-rose-400 hover:bg-rose-950/20 rounded-lg transition-all"
                               title="Delete Service"
                             >
@@ -1245,9 +1471,16 @@ export default function App() {
                                 </div>
                               </td>
                               <td className="p-4">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeClass(booking.status)}`}>
-                                  {booking.status}
-                                </span>
+                                <div className="space-y-1">
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeClass(booking.status)}`}>
+                                    {booking.status}
+                                  </span>
+                                  {booking.status === 'CANCELLED' && booking.cancellationReason && (
+                                    <div className="text-[11px] text-rose-400 italic max-w-[200px] truncate" title={booking.cancellationReason}>
+                                      Reason: {booking.cancellationReason}
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-4">
                                 {booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' ? (
@@ -1319,106 +1552,99 @@ export default function App() {
         )}
       </main>
 
-      {/* Auth Modal overlay */}
-      {showAuthModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="glass-panel w-full max-w-md rounded-2xl overflow-hidden border border-slate-800 shadow-2xl relative">
+      {/* Cancellation Modal */}
+      {cancelModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="glass-panel w-full max-w-md rounded-2xl border border-slate-800 shadow-2xl p-6 space-y-6 relative">
             <button
-              onClick={() => setShowAuthModal(false)}
+              onClick={() => setCancelModal({ show: false, bookingId: null, reason: '', type: 'customer' })}
               className="absolute top-4 right-4 text-slate-400 hover:text-white"
             >
               <X size={20} />
             </button>
 
-            {/* Tabs Selector */}
-            <div className="flex border-b border-slate-900 text-xs">
-              <button
-                onClick={() => setAuthTab('customer_login')}
-                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
-                  authTab === 'customer_login'
-                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Client Login
-              </button>
-              <button
-                onClick={() => setAuthTab('customer_register')}
-                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
-                  authTab === 'customer_register'
-                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Client Register
-              </button>
-              <button
-                onClick={() => setAuthTab('staff_login')}
-                className={`flex-1 py-4 font-bold border-b-2 tracking-wider uppercase text-center ${
-                  authTab === 'staff_login'
-                    ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Staff Portal
-              </button>
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
+                <AlertCircle size={20} className="text-rose-500" />
+                Cancel Appointment
+              </h3>
+              <p className="text-sm text-slate-400">
+                Are you sure you want to cancel this booking? This action cannot be undone.
+              </p>
             </div>
 
-            {/* Auth Form Container */}
-            <form onSubmit={handleAuth} className="p-8 space-y-4">
-              <h3 className="text-lg font-bold tracking-tight text-center text-slate-100">
-                {authTab === 'customer_login' && 'Sign in to your client account'}
-                {authTab === 'customer_register' && 'Register client profile'}
-                {authTab === 'staff_login' && 'Administrator authorization'}
-              </h3>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Reason for cancellation (optional)
+              </label>
+              <textarea
+                value={cancelModal.reason}
+                onChange={(e) => setCancelModal({ ...cancelModal, reason: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg p-3 text-sm text-slate-100 outline-none min-h-[100px] transition-all"
+                placeholder="e.g. Personal emergency, rescheduling, etc."
+              />
+            </div>
 
-              {authTab === 'customer_register' && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={authForm.name}
-                    onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg px-4 py-2 text-sm text-slate-100 outline-none transition-all"
-                    placeholder="e.g. John Doe"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={authForm.email}
-                  onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg px-4 py-2 text-sm text-slate-100 outline-none transition-all"
-                  placeholder="name@example.com"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={authForm.password}
-                  onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg px-4 py-2 text-sm text-slate-100 outline-none transition-all"
-                  placeholder="••••••••"
-                />
-              </div>
-
+            <div className="flex gap-3">
               <button
-                type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg text-sm tracking-wide shadow-lg shadow-indigo-600/20 transition-all duration-200 mt-2"
+                type="button"
+                onClick={() => setCancelModal({ show: false, bookingId: null, reason: '', type: 'customer' })}
+                className="flex-1 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-semibold py-2.5 rounded-lg text-sm transition-all"
               >
-                {authTab === 'customer_login' && 'Sign In'}
-                {authTab === 'customer_register' && 'Register Account'}
-                {authTab === 'staff_login' && 'Log In Staff'}
+                No, Keep It
               </button>
-            </form>
+              <button
+                type="button"
+                onClick={submitCancellation}
+                className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2.5 rounded-lg text-sm shadow-lg shadow-rose-600/20 transition-all"
+              >
+                Confirm Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Service Confirmation Modal */}
+      {deleteModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="glass-panel w-full max-w-md rounded-2xl border border-slate-800 shadow-2xl p-6 space-y-6 relative text-center">
+            <button
+              onClick={() => setDeleteModal({ show: false, serviceId: null, serviceTitle: null })}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="mx-auto w-12 h-12 rounded-full bg-rose-950/40 border border-rose-900/30 flex items-center justify-center text-rose-500">
+              <Trash2 size={24} />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold tracking-tight text-slate-100">
+                Delete Service?
+              </h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Are you sure you want to permanently delete <span className="font-semibold text-slate-200">"{deleteModal.serviceTitle}"</span>? This will remove the service from the catalog.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteModal({ show: false, serviceId: null, serviceTitle: null })}
+                className="flex-1 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-semibold py-2.5 rounded-lg text-sm transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitDeleteService}
+                className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2.5 rounded-lg text-sm shadow-lg shadow-rose-600/20 transition-all"
+              >
+                Delete Permanently
+              </button>
+            </div>
           </div>
         </div>
       )}

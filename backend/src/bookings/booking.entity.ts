@@ -54,6 +54,9 @@ export class Booking {
   @Column({ nullable: true })
   notes: string;
 
+  @Column({ nullable: true })
+  cancellationReason: string;
+
   @CreateDateColumn()
   createdAt: Date;
 
